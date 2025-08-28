@@ -1,297 +1,241 @@
-# Mandatory Steps Before Deploying Your Backend
+# Video Platform Backend
 
-## 1. Code and Environment Preparation
+A robust Node.js backend for a complete video streaming platform with user authentication, video management, search functionality, and library features.
 
-**Clean up your codebase**
-- Remove all console.log statements and debug code
-- Remove unused dependencies and imports
-- Ensure no sensitive data is hardcoded in source files
-- Fix any linting warnings or errors
+## Features
 
-**Set up environment variables**
+- User registration and authentication with JWT tokens
+- Video upload and management system
+- Full-text search for videos and users
+- User library features (Watch Later, History, Liked Videos)
+- Comment and like system
+- User subscriptions and playlists
+- File upload handling with Cloudinary integration
+- Rate limiting and security middleware
+- MongoDB integration with optimized queries
+
+## Tech Stack
+
+- **Runtime:** Node.js 18+
+- **Framework:** Express.js
+- **Database:** MongoDB with Mongoose ODM
+- **Authentication:** JWT (JSON Web Tokens)
+- **File Storage:** Cloudinary
+- **Security:** Helmet, CORS, Rate Limiting
+- **Environment:** dotenv for configuration
+
+## Prerequisites
+
+Before running this application, make sure you have:
+
+- Node.js 18 or higher installed
+- MongoDB database (local or MongoDB Atlas)
+- Cloudinary account for file uploads
+- npm or yarn package manager
+
+## Installation
+
+1. Clone the repository
 ```bash
-# Create production .env file
-NODE_ENV=production
-PORT=5000
-MONGODB_URI=mongodb+srv://user:password@cluster.mongodb.net/videodb
-ACCESS_TOKEN_SECRET=your_super_secure_64_character_secret
-REFRESH_TOKEN_SECRET=your_super_secure_64_character_refresh_secret
+git clone <repository-url>
+cd video-platform-backend
+```
+
+2. Install dependencies
+```bash
+npm install
+```
+
+3. Create environment file
+```bash
+cp .env.example .env
+```
+
+4. Configure environment variables in `.env` file:
+```
+MONGODB_URI=mongodb://localhost:27017/videodb
+DB_NAME=videodb
+ACCESS_TOKEN_SECRET=your_super_secure_access_token_secret
+REFRESH_TOKEN_SECRET=your_super_secure_refresh_token_secret
+ACCESS_TOKEN_EXPIRY=1d
+REFRESH_TOKEN_EXPIRY=10d
+CORS_ORIGIN=http://localhost:3000
 CLOUDINARY_CLOUD_NAME=your_cloud_name
 CLOUDINARY_API_KEY=your_api_key
 CLOUDINARY_API_SECRET=your_api_secret
-CORS_ORIGIN=https://your-frontend-domain.com
+NODE_ENV=development
+PORT=5000
 ```
 
-**Verify package.json**
-```json
-{
-  "name": "video-platform-backend",
-  "version": "1.0.0",
-  "engines": {
-    "node": "18.x",
-    "npm": "9.x"
-  },
-  "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js"
-  },
-  "main": "index.js"
-}
+5. Start the development server
+```bash
+npm run dev
 ```
 
-## 2. Database Configuration
+The server will start on http://localhost:5000
 
-**Set up MongoDB Atlas production database**
-- Create production cluster on MongoDB Atlas
-- Configure database user with proper permissions
-- Whitelist IP addresses (0.0.0.0/0 for cloud platforms)
-- Get correct connection string
+## API Endpoints
 
-**Create essential database indexes**
+### Authentication
+- `POST /api/users/register` - Register new user
+- `POST /api/users/login` - User login
+- `POST /api/users/logout` - User logout
+- `POST /api/users/refresh-token` - Refresh access token
+
+### User Management
+- `GET /api/users/me` - Get current user profile
+- `PATCH /api/users/profile` - Update user profile
+- `PATCH /api/users/avatar` - Update user avatar
+- `PATCH /api/users/cover` - Update cover image
+- `GET /api/users/search` - Search users
+
+### Videos
+- `GET /api/videos` - Get all published videos
+- `POST /api/videos` - Upload new video
+- `GET /api/videos/:id` - Get video by ID
+- `PATCH /api/videos/:id` - Update video details
+- `DELETE /api/videos/:id` - Delete video
+
+### Search
+- `GET /api/search/videos` - Search videos with filters
+- `GET /api/search/users` - Search users
+- `GET /api/search/suggestions` - Get search suggestions
+
+### Library Features
+- `GET /api/library/watchlater` - Get watch later videos
+- `POST /api/library/watchlater` - Add video to watch later
+- `DELETE /api/library/watchlater/:videoId` - Remove from watch later
+- `GET /api/library/history` - Get watch history
+- `POST /api/library/history` - Add video to history
+- `DELETE /api/library/history` - Clear all history
+- `GET /api/library/liked` - Get liked videos
+
+### Social Features
+- `POST /api/likes` - Like or unlike video
+- `POST /api/comments` - Add comment to video
+- `POST /api/subscriptions` - Subscribe to channel
+
+## Database Setup
+
+### MongoDB Indexes
+
+Create these indexes for optimal performance:
+
 ```javascript
-// Text search indexes (mandatory for search functionality)
-db.videos.createIndex({ 
-  title: "text", 
-  description: "text", 
-  tags: "text" 
-});
+// Text search indexes
+db.videos.createIndex({ title: "text", description: "text", tags: "text" });
 
 // Performance indexes
 db.videos.createIndex({ isPublished: 1, createdAt: -1 });
 db.users.createIndex({ username: 1 });
 db.users.createIndex({ email: 1 });
-db.users.createIndex({ _id: 1 });
-
-// Library indexes
-db.watchlater.createIndex({ user: 1, video: 1 });
-db.watchhistory.createIndex({ user: 1, watchedAt: -1 });
 ```
 
-## 3. Security Implementation
+### Models
 
-**Update CORS configuration**
-```javascript
-const corsOptions = {
-  origin: process.env.CORS_ORIGIN || 'https://your-frontend-domain.com',
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-};
+The application uses these main data models:
+- **User** - User accounts and profiles
+- **Video** - Video content and metadata
+- **Comment** - Video comments and replies
+- **Like** - User likes on videos and comments
+- **Playlist** - User-created playlists
+- **Subscription** - Channel subscriptions
+- **WatchLater** - Saved videos for later viewing
+- **WatchHistory** - User viewing history
+
+## Development
+
+### Project Structure
+```
+src/
+├── controllers/     # Route handlers and business logic
+├── middleware/      # Custom middleware functions
+├── models/         # Database models and schemas
+├── routes/         # API route definitions
+├── utils/          # Utility functions and helpers
+├── db/            # Database connection
+└── app.js         # Express app configuration
 ```
 
-**Implement rate limiting**
-```javascript
-const rateLimit = require('express-rate-limit');
+### Available Scripts
 
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many authentication attempts'
-});
+- `npm start` - Start production server
+- `npm run dev` - Start development server with nodemon
+- `npm test` - Run tests (if configured)
 
-app.use('/api/users/login', authLimiter);
-app.use('/api/users/register', authLimiter);
+### Code Style
+
+This project follows standard JavaScript conventions with:
+- ES6+ module syntax
+- Async/await for asynchronous operations
+- Proper error handling with try-catch blocks
+- Consistent naming conventions
+
+## Security Features
+
+- JWT-based authentication with refresh tokens
+- Password hashing with bcrypt
+- Rate limiting on authentication endpoints
+- CORS configuration for cross-origin requests
+- Helmet for security headers
+- Input validation and sanitization
+- Environment variable protection
+
+## Error Handling
+
+The application includes comprehensive error handling:
+- Global error handler middleware
+- Custom API error classes
+- Detailed error logging
+- User-friendly error responses
+- Graceful shutdown handling
+
+## Production Deployment
+
+### Environment Variables for Production
+```
+NODE_ENV=production
+MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/videodb
+CORS_ORIGIN=https://your-frontend-domain.com
 ```
 
-**Add security headers**
-```javascript
-app.use(helmet({
-  crossOriginEmbedderPolicy: false,
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      mediaSrc: ["'self'", "https:"]
-    }
-  }
-}));
-```
+### Deployment Platforms
 
-## 4. Error Handling and Logging
+This backend is optimized for deployment on:
+- Railway (recommended)
+- Render
+- DigitalOcean App Platform
+- AWS Elastic Beanstalk
+- Heroku
 
-**Add global error handler**
-```javascript
-app.use((err, req, res, next) => {
-  console.error('Error:', err.message);
-  
-  const status = err.statusCode || 500;
-  const message = process.env.NODE_ENV === 'production' 
-    ? 'Internal Server Error' 
-    : err.message;
-    
-  res.status(status).json({
-    success: false,
-    error: message
-  });
-});
-```
+### Health Check
 
-**Implement graceful shutdown**
-```javascript
-process.on('SIGINT', () => {
-  console.log('Received SIGINT. Shutting down gracefully...');
-  process.exit(0);
-});
+The application provides health check endpoints:
+- `GET /` - Basic status check
+- `GET /api/health` - Detailed health information
 
-process.on('SIGTERM', () => {
-  console.log('Received SIGTERM. Shutting down gracefully...');
-  process.exit(0);
-});
-```
+## Contributing
 
-## 5. API Testing and Validation
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-**Test all critical endpoints**
-- User registration and login
-- Video upload and retrieval
-- Search functionality
-- Library features (watch later, history)
-- File upload to Cloudinary
-- Database connectivity
+## License
 
-**Create test requests**
-```bash
-# Test health endpoint
-curl https://your-backend-url.com/api/health
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-# Test authentication
-curl -X POST https://your-backend-url.com/api/users/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"test@example.com","password":"password123"}'
+## Support
 
-# Test search
-curl https://your-backend-url.com/api/search/videos?query=javascript
-```
+For support and questions:
+- Create an issue in the repository
+- Check the API documentation at `/api/docs`
+- Review the health status at `/api/health`
 
-## 6. Performance Optimizations
+## Version History
 
-**Add compression middleware**
-```javascript
-import compression from 'compression';
-
-if (process.env.NODE_ENV === 'production') {
-  app.use(compression());
-}
-```
-
-**Optimize MongoDB connections**
-```javascript
-const connectDB = async () => {
-  try {
-    const connectionInstance = await mongoose.connect(
-      `${process.env.MONGODB_URI}/${process.env.DB_NAME}`,
-      {
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
-        maxPoolSize: 10,
-        serverSelectionTimeoutMS: 5000,
-        socketTimeoutMS: 45000,
-      }
-    );
-    console.log(`MongoDB connected: ${connectionInstance.connection.host}`);
-  } catch (error) {
-    console.log("MongoDB connection failed:", error);
-    process.exit(1);
-  }
-};
-```
-
-## 7. Health Check and Monitoring
-
-**Add comprehensive health check**
-```javascript
-app.get('/api/health', async (req, res) => {
-  try {
-    // Test database connection
-    await mongoose.connection.db.admin().ping();
-    
-    res.json({
-      status: 'healthy',
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      database: 'connected',
-      environment: process.env.NODE_ENV
-    });
-  } catch (error) {
-    res.status(503).json({
-      status: 'unhealthy',
-      error: error.message
-    });
-  }
-});
-```
-
-## 8. File and Dependency Verification
-
-**Verify all required files exist**
-- index.js (main entry point)
-- app.js (Express configuration)
-- All controller files
-- All route files
-- All model files
-- Package.json with correct dependencies
-
-**Check dependencies**
-```bash
-npm audit
-npm audit fix
-```
-
-**Update to stable versions**
-```bash
-npm update
-npm ls
-```
-
-## 9. Final Pre-deployment Checklist
-
-**Environment variables checklist**
-- [ ] MONGODB_URI points to production database
-- [ ] ACCESS_TOKEN_SECRET is secure (64+ characters)
-- [ ] REFRESH_TOKEN_SECRET is secure (64+ characters)
-- [ ] CLOUDINARY credentials are correct
-- [ ] CORS_ORIGIN matches frontend domain
-- [ ] NODE_ENV set to 'production'
-
-**Security checklist**
-- [ ] No sensitive data in code
-- [ ] .env file not committed to git
-- [ ] Rate limiting implemented
-- [ ] CORS properly configured
-- [ ] Helmet security headers added
-- [ ] Input validation in place
-
-**Database checklist**
-- [ ] Production database created
-- [ ] All indexes created
-- [ ] Database user configured
-- [ ] Connection string tested
-- [ ] IP whitelist configured
-
-**Testing checklist**
-- [ ] All API endpoints tested
-- [ ] Authentication flow working
-- [ ] File uploads working
-- [ ] Search functionality working
-- [ ] Library features working
-- [ ] Error handling working
-
-**Performance checklist**
-- [ ] Compression enabled
-- [ ] Database queries optimized
-- [ ] Connection pooling configured
-- [ ] Memory leaks checked
-
-## 10. Deploy-Ready Commands
-
-**Start the application**
-```bash
-npm install --production
-npm start
-```
-
-**Verify deployment locally**
-```bash
-NODE_ENV=production npm start
-```
-
-After completing all these steps, your backend will be ready for deployment on any cloud platform. These preparations ensure a smooth deployment process and stable production environment.
+- v1.0.0 - Initial release with core features
+- v1.1.0 - Added search functionality
+- v1.2.0 - Added library features (Watch Later, History)
+- v2.0.0 - Complete redesign with enhanced security
