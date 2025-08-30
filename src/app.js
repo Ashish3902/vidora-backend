@@ -499,6 +499,8 @@
 // export default app;
 // FILE: src/app.js - COMPLETE REBUILT VERSION WITH ALL FEATURES
 // ============================================================
+// FILE: src/app.js - REBUILT & PRODUCTION-READY VERSION
+// ===================================================
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
@@ -512,8 +514,8 @@ import commentRoutes from "./routes/comment.routes.js";
 import likeRoutes from "./routes/like.routes.js";
 import playlistRoutes from "./routes/playlist.routes.js";
 import subscriptionRoutes from "./routes/subscription.routes.js";
-import libraryRoutes from "./routes/library.routes.js"; // ✅ LIBRARY ROUTES
-import searchRoutes from "./routes/search.routes.js"; // ✅ SEARCH ROUTES
+import libraryRoutes from "./routes/library.routes.js";
+import searchRoutes from "./routes/search.routes.js";
 
 const app = express();
 
@@ -522,119 +524,85 @@ const app = express();
 // ==========================================
 app.use(
   helmet({
-    crossOriginEmbedderPolicy: false, // Fix for video streaming
+    crossOriginEmbedderPolicy: false, // Allow video streaming
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
         scriptSrc: ["'self'"],
         imgSrc: ["'self'", "data:", "https:"],
-        mediaSrc: ["'self'", "https:"], // Allow video streaming
-        connectSrc: ["'self'", "https:", "ws:", "wss:"], // WebSocket support
+        mediaSrc: ["'self'", "https:"], // Video streaming
+        connectSrc: ["'self'", "https:", "ws:", "wss:"], // WebSocket
       },
     },
   })
 );
 
 // ==========================================
-// CORS CONFIGURATION
+// CORS CONFIGURATION (CRITICAL FOR VERCEL)
 // ==========================================
 app.use(
   cors({
-    origin: function (origin, callback) {
-      // Allow requests with no origin (mobile apps, curl, etc.)
+    origin: (origin, callback) => {
       const allowedOrigins = [
         process.env.CORS_ORIGIN || "http://localhost:5173",
         "http://localhost:3000",
         "http://localhost:5174",
         "http://127.0.0.1:5173",
-        "http://localhost:8080", // Additional dev port
-        "https://your-frontend-domain.com", // Add your production domain
+        "https://momentum-jqml-git-main-aashu01s-projects.vercel.app", // ✅ YOUR VERCEL URL
+        // Add more Vercel URLs as needed
       ];
 
+      // Allow requests without origin (mobile apps, curl, etc.)
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
         console.warn("⚠️ CORS blocked origin:", origin);
-        callback(null, false); // Don't throw error, just reject
+        callback(null, false);
       }
     },
     credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
-    exposedHeaders: ["X-Total-Count", "X-Page-Count"], // For pagination
-    maxAge: 86400, // Cache preflight for 24 hours
+    exposedHeaders: ["X-Total-Count", "X-Page-Count"],
+    maxAge: 86400, // 24 hours cache for preflight
   })
 );
 
-// Handle preflight requests
-app.options("*", cors());
+// Handle preflight OPTIONS requests explicitly
+app.options("*", (req, res) => {
+  res.header("Access-Control-Allow-Origin", req.headers.origin);
+  res.header(
+    "Access-Control-Allow-Methods",
+    "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS"
+  );
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Content-Type,Authorization,X-Requested-With"
+  );
+  res.header("Access-Control-Allow-Credentials", "true");
+  res.sendStatus(200);
+});
 
 // ==========================================
 // BODY PARSING MIDDLEWARE
 // ==========================================
-app.use(
-  express.json({
-    limit: "50mb",
-    strict: true,
-  })
-);
-
+app.use(express.json({ limit: "50mb", strict: true }));
 app.use(
   express.urlencoded({
-    extended: true,
     limit: "50mb",
+    extended: true,
     parameterLimit: 1000,
   })
 );
-
 app.use(cookieParser());
-
-// ==========================================
-// DEVELOPMENT DEBUGGING MIDDLEWARE
-// ==========================================
-if (process.env.NODE_ENV !== "production") {
-  app.use((req, res, next) => {
-    const timestamp = new Date().toISOString();
-    const method = req.method.padEnd(6);
-    const path = req.originalUrl.padEnd(40);
-
-    console.log(`🔍 [${timestamp}] ${method} ${path}`);
-
-    // Log query params if present
-    if (Object.keys(req.query).length > 0) {
-      console.log(`   📋 Query:`, JSON.stringify(req.query, null, 2));
-    }
-
-    // Log body for POST/PUT/PATCH (but limit size)
-    if (
-      req.body &&
-      Object.keys(req.body).length > 0 &&
-      ["POST", "PUT", "PATCH"].includes(req.method)
-    ) {
-      const bodyStr = JSON.stringify(req.body);
-      const truncatedBody =
-        bodyStr.length > 200 ? bodyStr.substring(0, 200) + "..." : bodyStr;
-      console.log(`   📄 Body:`, truncatedBody);
-    }
-
-    // Log auth status
-    if (req.headers.authorization) {
-      console.log(`   🔐 Auth: Token present`);
-    }
-
-    next();
-  });
-}
 
 // ==========================================
 // RATE LIMITING
 // ==========================================
-
-// Authentication rate limiter (stricter)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // 100 requests per window
+  max: 100, // Max 100 requests per window
   message: {
     success: false,
     error: "Too many authentication attempts, please try again later",
@@ -642,104 +610,51 @@ const authLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => {
-    return req.ip + ":" + (req.headers["user-agent"] || "unknown");
-  },
+  keyGenerator: (req) =>
+    req.ip + ":" + (req.headers["user-agent"] || "unknown"),
 });
 
-// General API rate limiter (more lenient)
-const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 1000, // 1000 requests per window
-  message: {
-    success: false,
-    error: "API rate limit exceeded",
-    retryAfter: "15 minutes",
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-// Search rate limiter (moderate)
-const searchLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 60, // 60 searches per minute
-  message: {
-    success: false,
-    error: "Search rate limit exceeded",
-    retryAfter: "1 minute",
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-// Apply rate limiting to specific endpoints
+// Apply rate limiting to auth endpoints
 app.use("/api/users/login", authLimiter);
 app.use("/api/users/register", authLimiter);
 app.use("/api/users/refresh-token", authLimiter);
-app.use("/api/search", searchLimiter);
+
+// General API rate limiter
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 1000, // Max 1000 requests per window
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 app.use("/api/", apiLimiter);
 
-// ==========================================
-// HEALTH CHECK ROUTES
-// ==========================================
+// Search rate limiter
+const searchLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 60, // Max 60 searches per minute
+});
+app.use("/api/search", searchLimiter);
 
-// Root health check
-app.get("/", (req, res) => {
-  res.json({
-    success: true,
-    message: "🚀 Video Platform API is running!",
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || "development",
-    version: "2.0.0",
-    features: {
-      authentication: "✅ JWT + Refresh Token",
-      videoStreaming: "✅ HLS + Progressive",
-      library: "✅ Watch Later, History, Liked",
-      search: "✅ Full-text Video & User Search",
-      realtime: "✅ WebSocket Events",
-    },
+// ==========================================
+// DEVELOPMENT LOGGING
+// ==========================================
+if (process.env.NODE_ENV !== "production") {
+  app.use((req, res, next) => {
+    console.log(`🔍 ${req.method} ${req.originalUrl}`);
+    if (Object.keys(req.query).length > 0) {
+      console.log("   Query:", req.query);
+    }
+    if (req.headers.authorization) {
+      console.log("   🔐 Auth: Token present");
+    }
+    next();
   });
-});
-
-// Detailed API health check
-app.get("/api/health", (req, res) => {
-  const healthInfo = {
-    success: true,
-    status: "✅ Healthy",
-    timestamp: new Date().toISOString(),
-    uptime: `${Math.floor(process.uptime())} seconds`,
-    memory: {
-      used: `${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`,
-      total: `${Math.round(process.memoryUsage().heapTotal / 1024 / 1024)}MB`,
-    },
-    routes: {
-      users: "✅ Mounted at /api/users",
-      videos: "✅ Mounted at /api/videos",
-      comments: "✅ Mounted at /api/comments",
-      likes: "✅ Mounted at /api/likes",
-      playlists: "✅ Mounted at /api/playlists",
-      subscriptions: "✅ Mounted at /api/subscriptions",
-      library: "✅ Mounted at /api/library", // ✅ LIBRARY
-      search: "✅ Mounted at /api/search", // ✅ SEARCH
-    },
-    database: {
-      status: "✅ Connected",
-      indexes: "✅ Text indexes created for search",
-    },
-  };
-
-  res.json(healthInfo);
-});
+}
 
 // ==========================================
-// API ROUTES MOUNTING WITH ENHANCED LOGGING
+// ROUTE MOUNTING FUNCTION
 // ==========================================
-
-console.log("🚀 Mounting API routes...");
-
-// Enhanced route mounting function
-const mountRoute = (path, router, name, description) => {
+function mountRoute(path, router, name, description) {
   app.use(
     path,
     (req, res, next) => {
@@ -752,11 +667,14 @@ const mountRoute = (path, router, name, description) => {
     },
     router
   );
-
   console.log(`✅ ${name} routes mounted at ${path} - ${description}`);
-};
+}
 
-// Mount all routes with descriptions
+// ==========================================
+// MOUNT ALL ROUTES
+// ==========================================
+console.log("🚀 Mounting API routes...");
+
 mountRoute(
   "/api/users",
   userRoutes,
@@ -783,19 +701,64 @@ mountRoute(
   libraryRoutes,
   "Library",
   "Watch Later, History & Liked Videos"
-); // ✅ LIBRARY
+);
 mountRoute(
   "/api/search",
   searchRoutes,
   "Search",
   "Full-text Video & User Search"
-); // ✅ SEARCH
+);
 
 console.log("✅ All routes mounted successfully!");
 
 // ==========================================
-// API DOCUMENTATION ROUTE
+// HEALTH CHECK ROUTES
 // ==========================================
+app.get("/", (req, res) => {
+  res.json({
+    success: true,
+    message: "🚀 Video Platform API is running!",
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || "development",
+    version: "2.0.0",
+    features: {
+      authentication: "✅ JWT + Refresh Token",
+      videoStreaming: "✅ HLS + Progressive",
+      library: "✅ Watch Later, History, Liked",
+      search: "✅ Full-text Video & User Search",
+      realtime: "✅ WebSocket Events",
+    },
+  });
+});
+
+app.get("/api/health", (req, res) => {
+  res.json({
+    success: true,
+    status: "✅ Healthy",
+    timestamp: new Date().toISOString(),
+    uptime: `${Math.floor(process.uptime())} seconds`,
+    memory: {
+      used: `${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`,
+      total: `${Math.round(process.memoryUsage().heapTotal / 1024 / 1024)}MB`,
+    },
+    routes: {
+      users: "✅ Mounted at /api/users",
+      videos: "✅ Mounted at /api/videos",
+      comments: "✅ Mounted at /api/comments",
+      likes: "✅ Mounted at /api/likes",
+      playlists: "✅ Mounted at /api/playlists",
+      subscriptions: "✅ Mounted at /api/subscriptions",
+      library: "✅ Mounted at /api/library",
+      search: "✅ Mounted at /api/search",
+    },
+    database: {
+      status: "✅ Connected",
+      indexes: "✅ Text indexes created for search",
+    },
+  });
+});
+
+// API Documentation
 app.get("/api/docs", (req, res) => {
   res.json({
     success: true,
@@ -809,13 +772,6 @@ app.get("/api/docs", (req, res) => {
         "POST /users/logout": "User logout",
         "POST /users/refresh-token": "Refresh access token",
       },
-      users: {
-        "GET /users/me": "Get current user profile",
-        "PATCH /users/profile": "Update user profile",
-        "PATCH /users/avatar": "Update user avatar",
-        "GET /users/search": "Search users by name",
-        "GET /users/:id": "Get user by ID",
-      },
       videos: {
         "GET /videos": "Get all published videos",
         "POST /videos": "Upload new video",
@@ -824,147 +780,56 @@ app.get("/api/docs", (req, res) => {
         "DELETE /videos/:id": "Delete video",
       },
       library: {
-        // ✅ LIBRARY DOCS
         "GET /library/watchlater": "Get watch later videos",
         "POST /library/watchlater": "Add video to watch later",
         "DELETE /library/watchlater/:videoId": "Remove from watch later",
         "GET /library/history": "Get watch history",
-        "POST /library/history": "Add video to history",
-        "DELETE /library/history": "Clear all history",
-        "DELETE /library/history/:videoId": "Remove from history",
         "GET /library/liked": "Get liked videos",
       },
       search: {
-        // ✅ SEARCH DOCS
         "GET /search/videos": "Search videos with full-text",
         "GET /search/users": "Search users by name/email",
-        "GET /search/suggestions": "Get search auto-suggestions",
-      },
-      social: {
-        "POST /likes": "Like/unlike video or comment",
-        "POST /comments": "Add comment to video",
-        "POST /subscriptions": "Subscribe/unsubscribe to channel",
       },
     },
-    rateLimits: {
-      authentication: "100 requests per 15 minutes",
-      search: "60 requests per minute",
-      api: "1000 requests per 15 minutes",
-    },
-    authentication: {
-      type: "Bearer Token",
-      header: "Authorization: Bearer <token>",
-      note: "Most endpoints require authentication",
-    },
     timestamp: new Date().toISOString(),
   });
 });
 
 // ==========================================
-// FEATURE STATUS ENDPOINTS
+// ERROR HANDLERS
 // ==========================================
 
-// Library status endpoint
-app.get("/api/library/status", (req, res) => {
-  res.json({
-    success: true,
-    feature: "📚 Library System",
-    status: "✅ Fully Operational",
-    features: {
-      watchLater: "✅ Save videos for later viewing",
-      history: "✅ Track viewing history with timestamps",
-      liked: "✅ View liked videos collection",
-    },
-    endpoints: 8,
-    timestamp: new Date().toISOString(),
-  });
-});
-
-// Search status endpoint
-app.get("/api/search/status", (req, res) => {
-  res.json({
-    success: true,
-    feature: "🔍 Search System",
-    status: "✅ Fully Operational",
-    features: {
-      videoSearch: "✅ Full-text search with relevance scoring",
-      userSearch: "✅ User search by name and email",
-      suggestions: "✅ Auto-complete search suggestions",
-      filters: "✅ Sort and date filtering",
-    },
-    endpoints: 3,
-    timestamp: new Date().toISOString(),
-  });
-});
-
-// ==========================================
-// CATCH-ALL 404 HANDLER
-// ==========================================
+// 404 Handler
 app.use("*", (req, res) => {
   console.warn(`⚠️ 404 - Route not found: ${req.method} ${req.originalUrl}`);
-
-  // Suggest similar routes
-  const suggestions = [];
-  const path = req.originalUrl.toLowerCase();
-
-  if (path.includes("user")) suggestions.push("/api/users");
-  if (path.includes("video")) suggestions.push("/api/videos");
-  if (path.includes("library")) suggestions.push("/api/library");
-  if (path.includes("search")) suggestions.push("/api/search");
-  if (path.includes("comment")) suggestions.push("/api/comments");
-  if (path.includes("like")) suggestions.push("/api/likes");
 
   res.status(404).json({
     success: false,
     error: "Route not found",
     message: `The requested endpoint ${req.method} ${req.originalUrl} does not exist`,
-    suggestions:
-      suggestions.length > 0
-        ? suggestions
-        : [
-            "Check /api/docs for available endpoints",
-            "Verify the HTTP method and path",
-            "Ensure you're using the correct base URL",
-          ],
     availableRoutes: {
       "GET /": "API status",
       "GET /api/health": "Detailed health check",
-      "GET /api/docs": "Complete API documentation",
+      "GET /api/docs": "API documentation",
       "/api/users/*": "User management & authentication",
       "/api/videos/*": "Video upload & management",
-      "/api/library/*": "Library features (Watch Later, History, Liked)", // ✅ LIBRARY
-      "/api/search/*": "Search videos & users", // ✅ SEARCH
-      "/api/comments/*": "Video comments & replies",
-      "/api/likes/*": "Like/dislike system",
-      "/api/playlists/*": "User playlists",
-      "/api/subscriptions/*": "Channel subscriptions",
-    },
-    helpLinks: {
-      documentation: "/api/docs",
-      health: "/api/health",
-      libraryStatus: "/api/library/status",
-      searchStatus: "/api/search/status",
+      "/api/library/*": "Library features",
+      "/api/search/*": "Search functionality",
     },
     timestamp: new Date().toISOString(),
   });
 });
 
-// ==========================================
-// GLOBAL ERROR HANDLER (Must be last)
-// ==========================================
+// Global Error Handler
 app.use((err, req, res, next) => {
-  // Log the error with full context
   console.error("❌ Global Error Handler:");
   console.error("   URL:", req.method, req.originalUrl);
   console.error("   IP:", req.ip);
-  console.error("   User-Agent:", req.headers["user-agent"]);
   console.error("   Error:", err.message);
   console.error("   Stack:", err.stack);
 
-  // Determine error status
   const status = err.statusCode || err.status || 500;
 
-  // Base error response
   let errorResponse = {
     success: false,
     error: "Internal Server Error",
@@ -973,14 +838,11 @@ app.use((err, req, res, next) => {
   };
 
   // Handle specific error types
-
-  // JWT errors
   if (err.name === "JsonWebTokenError") {
     errorResponse = {
       success: false,
       error: "Invalid token",
       message: "Please log in again",
-      code: "TOKEN_INVALID",
       timestamp: new Date().toISOString(),
     };
     return res.status(401).json(errorResponse);
@@ -991,73 +853,15 @@ app.use((err, req, res, next) => {
       success: false,
       error: "Token expired",
       message: "Please refresh your token or log in again",
-      code: "TOKEN_EXPIRED",
       timestamp: new Date().toISOString(),
     };
     return res.status(401).json(errorResponse);
   }
 
-  // Validation errors
-  if (err.name === "ValidationError") {
-    errorResponse = {
-      success: false,
-      error: "Validation failed",
-      message: err.message,
-      details: err.errors,
-      code: "VALIDATION_ERROR",
-      timestamp: new Date().toISOString(),
-    };
-    return res.status(400).json(errorResponse);
-  }
-
-  // MongoDB errors
-  if (err.name === "MongoError" || err.name === "MongoServerError") {
-    if (err.code === 11000) {
-      errorResponse = {
-        success: false,
-        error: "Duplicate entry",
-        message: "This resource already exists",
-        code: "DUPLICATE_ERROR",
-        timestamp: new Date().toISOString(),
-      };
-      return res.status(409).json(errorResponse);
-    }
-  }
-
-  // CORS errors
-  if (err.message === "Not allowed by CORS") {
-    errorResponse = {
-      success: false,
-      error: "CORS Policy Violation",
-      message: "Your origin is not allowed to access this resource",
-      code: "CORS_ERROR",
-      timestamp: new Date().toISOString(),
-    };
-    return res.status(403).json(errorResponse);
-  }
-
-  // Rate limiting errors
-  if (status === 429) {
-    errorResponse = {
-      success: false,
-      error: "Rate limit exceeded",
-      message: "Too many requests, please slow down",
-      retryAfter: err.retryAfter,
-      code: "RATE_LIMIT_ERROR",
-      timestamp: new Date().toISOString(),
-    };
-    return res.status(429).json(errorResponse);
-  }
-
-  // Custom API errors (400-499)
+  // Custom API errors
   if (status >= 400 && status < 500) {
-    errorResponse = {
-      success: false,
-      error: err.message || "Bad Request",
-      message: err.message || "The request could not be processed",
-      code: err.code || "CLIENT_ERROR",
-      timestamp: new Date().toISOString(),
-    };
+    errorResponse.error = err.message || "Bad Request";
+    errorResponse.message = err.message || "The request could not be processed";
   }
 
   // Add debug info in development
@@ -1065,8 +869,6 @@ app.use((err, req, res, next) => {
     errorResponse.debug = {
       stack: err.stack,
       details: err,
-      url: req.originalUrl,
-      method: req.method,
     };
   }
 
@@ -1074,31 +876,16 @@ app.use((err, req, res, next) => {
 });
 
 // ==========================================
-// GRACEFUL SHUTDOWN HANDLERS
+// GRACEFUL SHUTDOWN
 // ==========================================
 process.on("uncaughtException", (err) => {
   console.error("❌ Uncaught Exception:", err);
-  console.error("🔄 Shutting down gracefully...");
   process.exit(1);
 });
 
 process.on("unhandledRejection", (reason, promise) => {
-  console.error("❌ Unhandled Rejection at:", promise);
-  console.error("❌ Reason:", reason);
-  console.error("🔄 Shutting down gracefully...");
+  console.error("❌ Unhandled Rejection:", reason);
   process.exit(1);
 });
 
-// Graceful shutdown on SIGINT/SIGTERM
-process.on("SIGINT", () => {
-  console.log("🔄 Received SIGINT. Shutting down gracefully...");
-  process.exit(0);
-});
-
-process.on("SIGTERM", () => {
-  console.log("🔄 Received SIGTERM. Shutting down gracefully...");
-  process.exit(0);
-});
-
-// Export the app
 export default app;
