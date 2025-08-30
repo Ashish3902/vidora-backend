@@ -4,10 +4,16 @@
   "description": "a app looks like - youtube",
   "type": "module",
   "main": "index.js",
-   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon -r dotenv/config --experimental-json-modules src/index.js"
-   },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "build": "echo 'No build step required for Node.js backend'",
+    "test": "echo 'Tests not implemented yet'"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
   "keywords": [
     "javascript",
     "backend"
