@@ -1,39 +1,25 @@
-import "dotenv/config";
-import http from "http";
+
+import dotenv from "dotenv";
+import mongoose from "mongoose";
 import app from "./app.js";
 
-const PORT = process.env.PORT || 5000;
-const server = http.createServer(app);
+dotenv.config();
 
-// Graceful shutdown
-process.on("SIGTERM", () => {
-  console.log("🛑 SIGTERM received, shutting down gracefully");
-  server.close(() => {
-    console.log("✅ Process terminated");
-    process.exit(0);
-  });
-});
+const PORT = process.env.PORT || 7000;
+const MONGO_URI = process.env.MONGODB_URI;
 
-process.on("uncaughtException", (err) => {
-  console.error("💥 Uncaught Exception:", err);
-  process.exit(1);
-});
-
-process.on("unhandledRejection", (err) => {
-  console.error("💥 Unhandled Promise Rejection:", err);
-  server.close(() => {
+mongoose
+  .connect(MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(() => {
+    console.log("✅ Connected to MongoDB");
+    app.listen(PORT, () => {
+      console.log(`🚀 Server is running on http://localhost:${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error("❌ Failed to connect MongoDB:", err);
     process.exit(1);
   });
-});
-
-server.listen(PORT, () => {
-  console.log(`
-  🚀 ================================
-  🎬 VIDORA BACKEND SERVER RUNNING
-  🌍 Environment: ${process.env.NODE_ENV || "development"}
-  🔗 Port: ${PORT}
-  📡 Health Check: http://localhost:${PORT}/api/health
-  🕐 Started: ${new Date().toLocaleString()}
-  🚀 ================================
-  `);
-});
